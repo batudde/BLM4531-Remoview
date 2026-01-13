@@ -1,0 +1,91 @@
+﻿@rendermode InteractiveServer
+
+@using Remoview.Web.Services
+@inject LocalStorageService LocalStorage
+@inject ApiClient ApiClient
+@inject NavigationManager NavManager
+
+<!-- ÜST BAŞLIK -->
+<div class="top-row navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="brand-text" href="">Remoview</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill"></span>
+                <span>Home</span>
+            </NavLink>
+        </div>
+
+        @if (isLoggedIn)
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="film-ekle">
+                    <span class="bi bi-plus-square-fill"></span>
+                    <span>Film Ekle</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="profile">
+                    <span class="bi bi-person-circle"></span>
+                    <span>Profil</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="logout">
+                    <span class="bi bi-box-arrow-left"></span>
+                    <span>Çıkış Yap</span>
+                </NavLink>
+            </div>
+        }
+        else
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="register">
+                    <span class="bi bi-person-plus-fill"></span>
+                    <span>Kayıt Ol</span>
+                </NavLink>
+            </div>
+
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="login">
+                    <span class="bi bi-box-arrow-in-right"></span>
+                    <span>Giriş Yap</span>
+                </NavLink>
+            </div>
+        }
+
+    </nav>
+</div>
+
+@code {
+    private bool isLoggedIn;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            var token = await LocalStorage.GetItemAsync("authToken");
+            isLoggedIn = !string.IsNullOrWhiteSpace(token);
+            await InvokeAsync(StateHasChanged);
+        }
+
+        var currentToken = await LocalStorage.GetItemAsync("authToken");
+        var newIsLoggedIn = !string.IsNullOrWhiteSpace(currentToken);
+
+        if (newIsLoggedIn != isLoggedIn)
+        {
+            isLoggedIn = newIsLoggedIn;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

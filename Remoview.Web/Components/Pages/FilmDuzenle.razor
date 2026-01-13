@@ -1,0 +1,124 @@
+﻿@page "/film/edit/{FilmId:int}"
+@rendermode InteractiveServer
+
+@using remoview.Dtos
+@using remoview.Models
+@using Remoview.Web.Services
+
+@inject ApiClient ApiClient
+@inject NavigationManager NavigationManager
+
+<h3>Filmi Düzenle</h3>
+
+@if (pageIsLoading)
+{
+    <p><em>Film verileri yükleniyor...</em></p>
+}
+else
+{
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    <EditForm Model="filmDto" OnValidSubmit="HandleUpdateFilm" FormName="filmEditForm">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="card">
+            <div class="card-body">
+                <div class="mb-3">
+                    <label class="form-label">Film Başlığı</label>
+                    <InputText class="form-control" @bind-Value="filmDto.Title" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Türler (Genres)</label>
+                    <div class="row">
+                        @foreach (var genre in allGenres)
+                        {
+                            <div class="col-md-4">
+                                <div class="form-check">
+                                    <InputCheckbox class="form-check-input" id="@($"genre-{genre.Id}")"
+                                                   @bind-Value="selectedGenres[genre.Id]" />
+                                    <label class="form-check-label" for="@($"genre-{genre.Id}")">@genre.Name</label>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Poster URL'i</label>
+                    <InputText class="form-control" @bind-Value="filmDto.PosterUrl" />
+                </div>
+
+                <button type="submit" class="btn btn-success" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    }
+                    Değişiklikleri Kaydet
+                </button>
+                <a href="/film/@FilmId" class="btn btn-secondary">İptal</a>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int FilmId { get; set; }
+
+    private FilmUpdateDto filmDto = new FilmUpdateDto();
+    private List<Genre>? allGenres;
+    private Dictionary<int, bool> selectedGenres = new Dictionary<int, bool>();
+    private string? successMessage;
+    private bool isLoading = false;
+    private bool pageIsLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Sadece Token gerektirmeyen işi yap (Türleri çek)
+        allGenres = await ApiClient.GetGenresAsync();
+        if (allGenres != null)
+        {
+            foreach (var genre in allGenres) selectedGenres[genre.Id] = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Token gerektiren işi SADECE tarayıcıda yap
+        if (firstRender)
+        {
+            var editData = await ApiClient.GetFilmForEditAsync(FilmId);
+            if (editData != null)
+            {
+                filmDto.Title = editData.Title;
+                filmDto.PosterUrl = editData.PosterUrl;
+                foreach (var genreId in editData.SelectedGenreIds)
+                {
+                    if (selectedGenres.ContainsKey(genreId)) selectedGenres[genreId] = true;
+                }
+            }
+            pageIsLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task HandleUpdateFilm()
+    {
+        isLoading = true;
+        filmDto.GenreIds = selectedGenres.Where(x => x.Value).Select(x => x.Key).ToList();
+        var success = await ApiClient.UpdateFilmAsync(FilmId, filmDto);
+        isLoading = false;
+
+        if (success)
+        {
+            successMessage = "Film güncellendi! Yönlendiriliyorsunuz...";
+            StateHasChanged();
+            await Task.Delay(1000);
+            NavigationManager.NavigateTo($"/film/{FilmId}");
+        }
+    }
+}

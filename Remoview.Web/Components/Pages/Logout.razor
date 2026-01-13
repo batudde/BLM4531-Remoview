@@ -1,0 +1,28 @@
+﻿@page "/logout"
+
+@* Bu sayfayı "İnteraktif Sunucu" modunda çalıştır. *@
+@rendermode InteractiveServer
+
+@using Remoview.Web.Services
+@inject ApiClient ApiClient
+@inject NavigationManager NavigationManager
+
+<h3>Çıkış Yapılıyor...</h3>
+
+@code {
+    // 'OnInitializedAsync' (sunucuda çalışır) YERİNE
+    // 'OnAfterRenderAsync' (tarayıcıda çalışır) KULLANIYORUZ
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // 'firstRender' kontrolü, bu kodun SADECE sayfa ilk kez yüklendiğinde
+        // bir kez çalışmasını sağlar
+        if (firstRender)
+        {
+            // ApiClient'daki Logout metodumuzu çağır (token'ı localStorage'dan siler)
+            await ApiClient.LogoutAsync();
+
+            // Ana sayfaya yönlendir (ve tüm siteyi yenilemeye zorla ki menü güncellensin)
+            NavigationManager.NavigateTo("/", forceLoad: true);
+        }
+    }
+}

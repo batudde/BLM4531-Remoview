@@ -1,0 +1,173 @@
+﻿@page "/film-ekle"
+@rendermode InteractiveServer
+
+@using remoview.Dtos
+@using remoview.Models
+@using Remoview.Web.Services
+
+@inject ApiClient ApiClient
+@inject NavigationManager NavigationManager
+
+<PageTitle>Yeni Film Ekle - Remoview</PageTitle>
+
+<div class="rm-page">
+    <div class="rm-card">
+        <div class="rm-card-head">
+            <h1 class="rm-card-title">Yeni Film Ekle</h1>
+            <div class="rm-card-sub">Film bilgilerini doldur ve gönder.</div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMessage))
+        {
+            <div class="px-3 pt-3">
+                <div class="alert alert-success mb-0">@successMessage</div>
+            </div>
+        }
+
+        <div class="p-3 p-md-4">
+            <EditForm Model="filmDto" OnValidSubmit="HandleCreateFilm" FormName="filmForm">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+
+                <div class="rm-field">
+                    <label class="rm-label">Film Başlığı</label>
+                    <InputText class="form-control rm-input" @bind-Value="filmDto.Title" placeholder="Örn: Interstellar" />
+                </div>
+
+                <div class="rm-field">
+                    <label class="rm-label">Türler (Genres)</label>
+
+                    @if (allGenres == null)
+                    {
+                        <p class="opacity-75"><em>Türler yükleniyor...</em></p>
+                    }
+                    else
+                    {
+                        <input class="form-control rm-input mb-2"
+                               placeholder="Tür ara..."
+                               @bind="genreSearch"
+                               @bind:event="oninput" />
+
+                        <div class="rm-genre-grid">
+                            @foreach (var genre in FilteredGenres)
+                            {
+                                <label class="rm-genre-pill">
+                                    <input type="checkbox"
+                                           checked="@selectedGenreIds.Contains(genre.Id)"
+                                           @onchange="(e) => ToggleGenreSelection(genre.Id, (bool)e.Value!)" />
+                                    <span>@genre.Name</span>
+                                </label>
+                            }
+                        </div>
+
+                        <div class="mt-2 small opacity-75">
+                            Seçili tür: <b>@selectedGenreIds.Count</b>
+                        </div>
+                    }
+                </div>
+
+                <div class="rm-field">
+                    <label class="rm-label">Poster URL'i</label>
+                    <InputText class="form-control rm-input" @bind-Value="filmDto.PosterUrl" placeholder="https://..." />
+
+                    @if (!string.IsNullOrWhiteSpace(filmDto.PosterUrl))
+                    {
+                        <div class="rm-poster-preview">
+                            <img src="@filmDto.PosterUrl" alt="Poster preview" />
+                        </div>
+                    }
+                </div>
+
+                <div class="mt-4 d-flex gap-2 flex-wrap">
+                    <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                        @if (isLoading)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        Filmi Ekle
+                    </button>
+
+                    <a class="btn btn-outline-light" href="/">
+                        Vazgeç
+                    </a>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    private FilmCreateDto filmDto = new FilmCreateDto();
+    private string? successMessage;
+    private bool isLoading = false;
+
+    private List<Genre>? allGenres;
+    private HashSet<int> selectedGenreIds = new HashSet<int>();
+
+    // UI: tür arama
+    private string genreSearch = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        allGenres = await ApiClient.GetGenresAsync();
+    }
+
+    private IEnumerable<Genre> FilteredGenres
+    {
+        get
+        {
+            if (allGenres == null) return Enumerable.Empty<Genre>();
+
+            var q = genreSearch.Trim();
+            if (string.IsNullOrWhiteSpace(q)) return allGenres;
+
+            return allGenres.Where(g =>
+                (g.Name ?? "").Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void ToggleGenreSelection(int genreId, bool isChecked)
+    {
+        if (isChecked)
+        {
+            selectedGenreIds.Add(genreId);
+        }
+        else
+        {
+            selectedGenreIds.Remove(genreId);
+        }
+    }
+
+    private async Task HandleCreateFilm()
+    {
+        isLoading = true;
+        successMessage = null;
+
+        try
+        {
+            filmDto.GenreIds = selectedGenreIds.ToList();
+
+            var newFilm = await ApiClient.CreateFilmAsync(filmDto);
+            isLoading = false;
+
+            if (newFilm != null)
+            {
+                successMessage = $"'{newFilm.Title}' başarıyla eklendi. Ana sayfaya yönlendiriliyorsunuz...";
+                StateHasChanged();
+                await Task.Delay(2000);
+                NavigationManager.NavigateTo("/");
+            }
+            else
+            {
+                successMessage = "Hata: Film eklenemedi. (Yetkiniz olmayabilir)";
+                StateHasChanged();
+            }
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            successMessage = "Sunucuya bağlanırken bir hata oluştu: " + ex.Message;
+            StateHasChanged();
+        }
+    }
+}

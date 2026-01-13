@@ -1,0 +1,6 @@
+@remoview_HostAddress = http://localhost:5183
+
+GET {{remoview_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

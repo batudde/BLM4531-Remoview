@@ -1,0 +1,359 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using remoview.Dtos
+@using Remoview.Web.Services
+@inject ApiClient ApiClient
+@inject IJSRuntime JS
+
+<PageTitle>Ana Sayfa - Remoview</PageTitle>
+
+@if (allFilms == null)
+{
+    <p><em>Filmler yükleniyor...</em></p>
+}
+else
+{
+    @if (heroFilm != null)
+    {
+        <div class="hero-banner"
+             style="background-image: url('@(string.IsNullOrEmpty(heroFilm.PosterUrl) ? "https://via.placeholder.com/1920x550?text=Remoview" : heroFilm.PosterUrl)')">
+            <div class="hero-content">
+                <p class="hero-label">En Yüksek Puanlı</p>
+                <h1 class="hero-title">@heroFilm.Title</h1>
+                <p class="hero-genre">@string.Join(", ", heroFilm.Genres)</p>
+                <a href="/film/@heroFilm.Id" class="btn btn-primary btn-lg">Detaylar</a>
+            </div>
+        </div>
+    }
+
+    <div class="container-fluid">
+
+        <!-- ✅ Filtre Bar -->
+        <div class="rm-filter-wrap">
+
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <h4 class="m-0">Filtrele</h4>
+                    @if (ActiveFilterCount > 0)
+                    {
+                        <span class="badge bg-secondary">@ActiveFilterCount aktif</span>
+                    }
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-light btn-sm" @onclick="ToggleFilters">
+                        <span class="bi bi-funnel-fill"></span> @(showFilters ? "Kapat" : "Aç")
+                    </button>
+
+                    <button class="btn btn-outline-warning btn-sm"
+                            @onclick="ClearFilters"
+                            disabled="@(ActiveFilterCount == 0)">
+                        <span class="bi bi-x-circle"></span> Temizle
+                    </button>
+                </div>
+            </div>
+
+            @if (showFilters)
+            {
+                <div class="rm-filter-panel card mt-2">
+
+                    <div class="card-body">
+                        <div class="row g-3">
+
+                            <!-- Kategoriler -->
+                            <div class="col-12 col-lg-7">
+                                <div class="filter-title">Kategoriler</div>
+
+                                <input class="form-control form-control-sm mb-2"
+                                       placeholder="Kategori ara..."
+                                       @bind="genreSearch"
+                                       @bind:event="oninput" />
+
+                                <div class="rm-genre-grid">
+                                    @foreach (var g in FilteredGenreOptions)
+                                    {
+                                        <label class="rm-genre-pill">
+                                            <input type="checkbox"
+                                                   checked="@selectedGenres.Contains(g)"
+                                                   @onchange="(e) => OnGenreToggle(g, (bool)e.Value!)" />
+                                            <span>@g</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Puan aralığı -->
+                            <div class="col-12 col-lg-5">
+                                <div class="filter-title">Puan Ortalaması</div>
+
+                                <div class="row g-2 align-items-end">
+                                    <div class="col-6">
+                                        <label class="form-label small opacity-75">Min</label>
+                                        <InputNumber class="form-control form-control-sm"
+                                                     @bind-Value="minRating"
+                                                     step="0.1" />
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label small opacity-75">Max</label>
+                                        <InputNumber class="form-control form-control-sm"
+                                                     @bind-Value="maxRating"
+                                                     step="0.1" />
+                                    </div>
+                                </div>
+
+                                <div class="d-flex gap-2 mt-3">
+                                    <button class="btn btn-primary btn-sm" @onclick="ApplyFilters">
+                                        <span class="bi bi-check2-circle"></span> Uygula
+                                    </button>
+                                </div>
+
+                                @if (!string.IsNullOrWhiteSpace(filterError))
+                                {
+                                    <div class="alert alert-danger mt-2 py-2 px-3">
+                                        @filterError
+                                    </div>
+                                }
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- ✅ Liste -->
+        @if (filmGroups == null || !filmGroups.Any())
+        {
+            <p>Gösterilecek film bulunamadı. <a href="/film-ekle">İlk filmi ekle!</a></p>
+        }
+        else
+        {
+            @for (int gi = 0; gi < filmGroups.Count; gi++)
+            {
+                var group = filmGroups[gi];
+                var rowId = $"carousel-row-{gi}";
+
+                <div class="rm-row-head">
+                    <h3 class="genre-title m-0">@group.GenreName</h3>
+
+                    <div class="rm-row-actions">
+                        <button type="button"
+                                class="rm-carousel-btn"
+                                title="Sola"
+                                @onclick="() => ScrollRow(rowId, -1)">
+                            <span class="bi bi-chevron-left"></span>
+                        </button>
+
+                        <button type="button"
+                                class="rm-carousel-btn"
+                                title="Sağa"
+                                @onclick="() => ScrollRow(rowId, 1)">
+                            <span class="bi bi-chevron-right"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="rm-carousel">
+                    <div class="film-carousel-row" id="@rowId">
+                        @foreach (var film in group.Films)
+                        {
+                            <div class="film-card card">
+                                <div class="film-card-poster-wrap">
+                                    <img src="@(string.IsNullOrEmpty(film.PosterUrl) ? "https://via.placeholder.com/300x450?text=Film+Afisi" : film.PosterUrl)"
+                                         class="film-card-img" alt="@film.Title">
+
+                                    <button type="button"
+                                            class="fav-btn"
+                                            title="Favori"
+                                            @onclick="async () => await ToggleFavorite(film.Id)">
+                                        <span>@(favoriteFilmIds.Contains(film.Id) ? "❤️" : "🤍")</span>
+                                    </button>
+                                </div>
+
+                                <div class="card-body">
+                                    <h5 class="card-title">@film.Title</h5>
+                                    <p class="card-text"><b>Puan: @film.AverageRating.ToString("0.0") / 5.0</b></p>
+                                    <a href="/film/@film.Id" class="btn btn-primary btn-sm">Detaylar</a>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    private List<FilmSummaryDto>? allFilms;
+    private List<FilmSummaryDto>? baseFilms;
+    private FilmSummaryDto? heroFilm;
+    private List<FilmGenreGroup>? filmGroups;
+
+    private HashSet<int> favoriteFilmIds = new();
+    private bool _favoritesLoaded = false;
+
+    private bool showFilters = false;
+    private HashSet<string> selectedGenres = new(StringComparer.OrdinalIgnoreCase);
+    private double? minRating = null;
+    private double? maxRating = null;
+    private string genreSearch = "";
+    private string? filterError = null;
+
+    private class FilmGenreGroup
+    {
+        public string GenreName { get; set; } = "";
+        public List<FilmSummaryDto> Films { get; set; } = new();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        allFilms = await ApiClient.GetFilmsAsync();
+        baseFilms = allFilms ?? new List<FilmSummaryDto>();
+
+        if (allFilms != null && allFilms.Any())
+        {
+            heroFilm = allFilms
+                .OrderByDescending(f => f.AverageRating)
+                .ThenByDescending(f => f.Id)
+                .FirstOrDefault();
+        }
+
+        BuildGroups(baseFilms);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        if (_favoritesLoaded) return;
+
+        _favoritesLoaded = true;
+
+        try
+        {
+            var favs = await ApiClient.GetFavoritesAsync();
+            favoriteFilmIds = favs.Select(f => f.Id).ToHashSet();
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private void ToggleFilters() => showFilters = !showFilters;
+
+    private int ActiveFilterCount
+    {
+        get
+        {
+            int c = 0;
+            if (selectedGenres.Count > 0) c++;
+            if (minRating.HasValue || maxRating.HasValue) c++;
+            return c;
+        }
+    }
+
+    private IEnumerable<string> GenreOptions =>
+        (allFilms ?? new List<FilmSummaryDto>())
+            .SelectMany(f => f.Genres ?? new List<string>())
+            .Where(g => !string.IsNullOrWhiteSpace(g))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(g => g);
+
+    private IEnumerable<string> FilteredGenreOptions
+    {
+        get
+        {
+            var q = genreSearch?.Trim();
+            if (string.IsNullOrWhiteSpace(q)) return GenreOptions;
+            return GenreOptions.Where(g => g.Contains(q, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void OnGenreToggle(string genre, bool isChecked)
+    {
+        if (isChecked) selectedGenres.Add(genre);
+        else selectedGenres.Remove(genre);
+    }
+
+    private void ClearFilters()
+    {
+        selectedGenres.Clear();
+        minRating = null;
+        maxRating = null;
+        filterError = null;
+
+        BuildGroups(baseFilms ?? new List<FilmSummaryDto>());
+    }
+
+    private void ApplyFilters()
+    {
+        filterError = null;
+
+        if (minRating.HasValue && maxRating.HasValue && minRating.Value > maxRating.Value)
+        {
+            filterError = "Min puan, Max puandan büyük olamaz.";
+            return;
+        }
+
+        var films = baseFilms ?? new List<FilmSummaryDto>();
+        IEnumerable<FilmSummaryDto> filtered = films;
+
+        if (selectedGenres.Count > 0)
+        {
+            filtered = filtered.Where(f =>
+                f.Genres != null && f.Genres.Any(g => selectedGenres.Contains(g)));
+        }
+
+        if (minRating.HasValue)
+            filtered = filtered.Where(f => f.AverageRating >= minRating.Value);
+
+        if (maxRating.HasValue)
+            filtered = filtered.Where(f => f.AverageRating <= maxRating.Value);
+
+        BuildGroups(filtered.ToList());
+    }
+
+    private void BuildGroups(List<FilmSummaryDto> films)
+    {
+        filmGroups = films
+            .SelectMany(film => (film.Genres != null && film.Genres.Any())
+                ? film.Genres.Select(genreName => new { Film = film, GenreName = genreName })
+                : new[] { new { Film = film, GenreName = "Diğer" } })
+            .GroupBy(x => x.GenreName)
+            .Select(g => new FilmGenreGroup
+                {
+                    GenreName = g.Key,
+                    Films = g.Select(x => x.Film).DistinctBy(x => x.Id).ToList()
+                })
+            .OrderBy(g => g.GenreName)
+            .ToList();
+    }
+
+    private async Task ToggleFavorite(int filmId)
+    {
+        try
+        {
+            if (favoriteFilmIds.Contains(filmId))
+            {
+                var ok = await ApiClient.RemoveFavoriteAsync(filmId);
+                if (ok) favoriteFilmIds.Remove(filmId);
+            }
+            else
+            {
+                var ok = await ApiClient.AddFavoriteAsync(filmId);
+                if (ok) favoriteFilmIds.Add(filmId);
+            }
+        }
+        catch { }
+
+        StateHasChanged();
+    }
+
+    private async Task ScrollRow(string rowId, int dir)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("rmScrollCarousel", rowId, dir);
+        }
+        catch { }
+    }
+}

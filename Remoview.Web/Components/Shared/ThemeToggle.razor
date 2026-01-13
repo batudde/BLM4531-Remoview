@@ -1,0 +1,39 @@
+﻿@rendermode InteractiveServer
+@inject IJSRuntime JSRuntime
+
+<button class="btn theme-toggle-btn" @onclick="ToggleTheme" title="Temayı Değiştir">
+    @if (currentTheme == "light-mode")
+    {
+        <span class="bi bi-moon-stars-fill"></span> @* Koyu Moda Geç (Ay) *@
+    }
+    else
+    {
+        <span class="bi bi-sun-fill"></span> @* Açık Moda Geç (Güneş) *@
+    }
+</button>
+
+@code {
+    private string currentTheme = "dark-mode"; // Varsayılan
+
+    // Sayfa tarayıcıda yüklendikten sonra çalışır
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Hafızadan o anki temayı oku ki doğru ikonu gösterelim
+            currentTheme = await JSRuntime.InvokeAsync<string>("localStorageFunctions.getItem", "theme");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    // Butona tıklandığında
+    private async Task ToggleTheme()
+    {
+        // JavaScript'teki 'toggleTheme' fonksiyonunu çağır
+        // ve yeni tema adını (light-mode veya dark-mode) geri al
+        currentTheme = await JSRuntime.InvokeAsync<string>("localStorageFunctions.toggleTheme");
+
+        // İkonun değişmesi için ekranı güncelle
+        await InvokeAsync(StateHasChanged);
+    }
+}

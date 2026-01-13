@@ -1,0 +1,75 @@
+.navbar-toggler {
+    background-color: rgba(255,255,255,0.1);
+}
+
+/* üst bar */
+.top-row {
+    height: 3.5rem;
+    background-color: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+}
+
+/* REMOVIEW YAZISI */
+.brand-text {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: white;
+    text-decoration: none;
+}
+
+    .brand-text:hover {
+        color: #f2f2f2;
+    }
+
+/* ikonlar */
+.bi {
+    width: 2rem;
+    font-size: 1.1rem;
+}
+
+/* nav item */
+.nav-item {
+    font-size: 0.95rem;
+    padding-bottom: 0.5rem;
+}
+
+    .nav-item:first-of-type {
+        padding-top: 1rem;
+    }
+
+    .nav-item:last-of-type {
+        padding-bottom: 1rem;
+    }
+
+    .nav-item ::deep .nav-link {
+        color: #d7d7d7;
+        border-radius: 6px;
+        height: 3rem;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background-color .2s ease, color .2s ease;
+    }
+
+        .nav-item ::deep .nav-link.active {
+            background-color: rgba(255,255,255,0.25);
+            color: white;
+        }
+
+        .nav-item ::deep .nav-link:hover {
+            background-color: rgba(255,255,255,0.1);
+            color: white;
+        }
+
+/* desktop */
+@media (min-width: 641px) {
+    .navbar-toggler {
+        display: none;
+    }
+
+    .nav-scrollable {
+        overflow: hidden;
+    }
+}

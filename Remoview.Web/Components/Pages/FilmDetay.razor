@@ -1,0 +1,277 @@
+﻿@page "/film/{FilmId:int}"
+@rendermode InteractiveServer
+
+@using remoview.Dtos
+@using Remoview.Web.Services
+@inject ApiClient ApiClient
+@inject LocalStorageService LocalStorage
+@inject NavigationManager NavigationManager
+
+<PageTitle>@(film == null ? "Film - Remoview" : $"{film.Title} - Remoview")</PageTitle>
+
+@if (film == null)
+{
+    <p><em>Film detayları yükleniyor...</em></p>
+}
+else
+{
+    <div class="rm-detail">
+        <div class="rm-detail-grid">
+
+            <!-- SOL: POSTER -->
+            <div class="rm-poster">
+                <img src="@(string.IsNullOrEmpty(film.PosterUrl) ? "https://via.placeholder.com/300x450?text=Film+Afisi" : film.PosterUrl)"
+                     alt="@film.Title" />
+            </div>
+
+            <!-- SAĞ: PANEL -->
+            <div class="rm-panel">
+                <h1 class="rm-title">@film.Title</h1>
+
+                <div class="rm-sub">
+                    @if (film.Genres != null && film.Genres.Any())
+                    {
+                        @string.Join(", ", film.Genres)
+                    }
+                </div>
+
+                <div class="rm-tags">
+                    @if (film.Genres != null && film.Genres.Any())
+                    {
+                        foreach (var g in film.Genres.Take(8))
+                        {
+                            <span class="rm-tag">@g</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="rm-tag">Tür?</span>
+                    }
+                </div>
+
+                <div class="rm-actions">
+                    <div class="rm-rating-pill">
+                        <span class="bi bi-star-fill"></span>
+                        <span>@film.AverageRating.ToString("0.0") / 5.0</span>
+                    </div>
+
+                    @if (isLoggedIn)
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-light"
+                                @onclick="ToggleFavorite">
+                            @(isFavorite ? "❤️ Favoride" : "🤍 Favorile")
+                        </button>
+
+                        <a href="/film/edit/@film.Id" class="btn btn-sm btn-outline-warning">
+                            <span class="bi bi-pencil-fill"></span> Düzenle
+                        </a>
+                    }
+                </div>
+
+                <div class="rm-divider"></div>
+
+                @if (isLoggedIn)
+                {
+                    <!-- PUAN VER -->
+                    <div class="rm-section">
+                        <div class="rm-section-title rm-form-title">Bu Filme Puan Ver</div>
+
+                        <div class="rm-row">
+                            <select @bind="newRating.Value"
+                                    class="rm-field rm-select"
+                                    style="width: 140px;">
+                                <option value="0" disabled>Puan seç</option>
+                                <option value="1">1 ★</option>
+                                <option value="2">2 ★</option>
+                                <option value="3">3 ★</option>
+                                <option value="4">4 ★</option>
+                                <option value="5">5 ★</option>
+                            </select>
+
+                            <button class="btn btn-danger rm-btn"
+                                    @onclick="HandleAddRating"
+                                    disabled="@(newRating.Value == 0)">
+                                Puan Ver
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rm-divider"></div>
+
+                    <!-- YORUM EKLE -->
+                    <div class="rm-section">
+                        <div class="rm-section-title rm-form-title">Yorum Ekle</div>
+
+                        <EditForm Model="newReview"
+                                  OnValidSubmit="HandleAddReview"
+                                  FormName="reviewForm"
+                                  class="rm-form">
+                            <DataAnnotationsValidator />
+
+                            <div class="mb-2">
+                                <InputTextArea class="rm-field rm-textarea"
+                                               @bind-Value="newReview.Comment"
+                                               rows="4"
+                                               placeholder="Film harikaydı çünkü...">
+                                </InputTextArea>
+                            </div>
+
+                            <button type="submit" class="btn btn-success rm-btn">
+                                Yorumu Gönder
+                            </button>
+                        </EditForm>
+                    </div>
+                }
+                else
+                {
+                    <div class="rm-section">
+                        <div class="rm-review-card">
+                            <div class="rm-review-meta">
+                                <span>Giriş gerekli</span>
+                            </div>
+                            <p class="rm-review-text">
+                                Puan vermek veya yorum yapmak için <a href="/login">giriş yapmalısınız</a>.
+                            </p>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- YORUMLAR -->
+        <div class="rm-comments">
+            <div class="rm-comments-head">
+                <h3 class="rm-comments-title">Yorumlar (@(film.Reviews?.Count ?? 0))</h3>
+
+                @if (isLoggedIn)
+                {
+                    <button class="btn btn-outline-light btn-sm" @onclick="ReloadFilm">
+                        <span class="bi bi-arrow-clockwise"></span> Yenile
+                    </button>
+                }
+            </div>
+
+            @if (film.Reviews == null || !film.Reviews.Any())
+            {
+                <p class="opacity-75">Henüz hiç yorum yapılmamış.</p>
+            }
+            else
+            {
+                foreach (var review in film.Reviews.OrderByDescending(r => r.CreatedAt))
+                {
+                    <div class="rm-review-card mb-3">
+                        <div class="rm-review-meta">
+                            <span>Kullanıcı @review.UserId</span>
+                            <span>@review.CreatedAt.ToString("g")</span>
+                        </div>
+                        <p class="rm-review-text">@review.Comment</p>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int FilmId { get; set; }
+
+    private FilmDetailDto? film;
+    private bool isLoggedIn = false;
+
+    // Favori state
+    private bool isFavorite = false;
+    private bool _favLoaded = false;
+
+    // Form DTO
+    private RatingCreateDto newRating = new RatingCreateDto { Value = 0 };
+    private ReviewCreateDto newReview = new ReviewCreateDto();
+
+    protected override async Task OnInitializedAsync()
+    {
+        film = await ApiClient.GetFilmDetailAsync(FilmId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        var token = await LocalStorage.GetItemAsync("authToken");
+        isLoggedIn = !string.IsNullOrEmpty(token);
+
+        // Favori durumunu sadece login varsa çek
+        if (isLoggedIn && !_favLoaded)
+        {
+            _favLoaded = true;
+            try
+            {
+                var favs = await ApiClient.GetFavoritesAsync();
+                isFavorite = favs.Any(x => x.Id == FilmId);
+            }
+            catch { }
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadFilm()
+    {
+        film = await ApiClient.GetFilmDetailAsync(FilmId);
+
+        if (isLoggedIn)
+        {
+            try
+            {
+                var favs = await ApiClient.GetFavoritesAsync();
+                isFavorite = favs.Any(x => x.Id == FilmId);
+            }
+            catch { }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleFavorite()
+    {
+        if (!isLoggedIn) return;
+
+        try
+        {
+            if (isFavorite)
+            {
+                var ok = await ApiClient.RemoveFavoriteAsync(FilmId);
+                if (ok) isFavorite = false;
+            }
+            else
+            {
+                var ok = await ApiClient.AddFavoriteAsync(FilmId);
+                if (ok) isFavorite = true;
+            }
+        }
+        catch { }
+
+        StateHasChanged();
+    }
+
+    private async Task HandleAddRating()
+    {
+        if (newRating.Value <= 0) return;
+
+        var success = await ApiClient.AddRatingAsync(FilmId, newRating);
+        if (success)
+        {
+            NavigationManager.NavigateTo($"/film/{FilmId}", forceLoad: true);
+        }
+    }
+
+    private async Task HandleAddReview()
+    {
+        if (string.IsNullOrWhiteSpace(newReview.Comment)) return;
+
+        var success = await ApiClient.AddReviewAsync(FilmId, newReview);
+        if (success)
+        {
+            NavigationManager.NavigateTo($"/film/{FilmId}", forceLoad: true);
+        }
+    }
+}

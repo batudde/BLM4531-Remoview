@@ -1,0 +1,25 @@
+﻿.theme-toggle-btn {
+    /* Yazı rengini beyaz yap (koyu temadaki 'About' gibi) */
+    color: #ffffff;
+    font-size: 1.1rem;
+    padding: 0;
+    margin-left: 1.5rem; /* 'About' linkiyle aynı boşluk */
+}
+
+    .theme-toggle-btn:hover {
+        color: #f0f0f0; /* Üzerine gelince hafif soluklaşsın */
+    }
+
+/* Eğer "Açık Mod"daysak, buton ikonunu mavi yap ('About' gibi) */
+body.light-mode .theme-toggle-btn {
+    color: #007bff;
+}
+
+    body.light-mode .theme-toggle-btn:hover {
+        color: #0056b3;
+    }
+
+/* İkonların dikey hizalamasını düzelt */
+.theme-toggle-btn .bi {
+    vertical-align: -0.125em;
+}

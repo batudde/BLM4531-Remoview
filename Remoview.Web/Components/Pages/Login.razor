@@ -1,0 +1,86 @@
+﻿@page "/login"
+@* Bu sayfayı "İnteraktif Sunucu" modunda çalıştır.
+  Bu komut, butona tıklama (@onclick) ve veri bağlama (@bind)
+  gibi C# kodlarının çalışmasını sağlar.
+*@
+@rendermode InteractiveServer
+
+@using remoview.Dtos           @* RegisterDto'yu (login için de) kullanacağız *@
+@using Remoview.Web.Services
+
+@inject ApiClient ApiClient
+@inject NavigationManager NavigationManager
+
+<h3>Giriş Yap</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+<EditForm Model="loginDto" OnValidSubmit="HandleLogin" FormName="loginForm">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div class="card">
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Email Adresi</label>
+                <InputText type="email" class="form-control" @bind-Value="loginDto.Email" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Şifre</label>
+                <InputText type="password" class="form-control" @bind-Value="loginDto.Password" />
+            </div>
+
+            <button type="submit" class="btn btn-primary" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                }
+                Giriş Yap
+            </button>
+        </div>
+    </div>
+</EditForm>
+
+
+@code {
+    private RegisterDto loginDto = new RegisterDto(); // RegisterDto'yu login için de kullanıyoruz
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleLogin()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            // Bu sefer ApiClient'taki 'LoginAsync' metodunu çağırıyoruz
+            var token = await ApiClient.LoginAsync(loginDto);
+
+            if (string.IsNullOrEmpty(token))
+            {
+                errorMessage = "Geçersiz email veya şifre.";
+            }
+            else
+            {
+                // !!!!! BURASI ÇOK ÖNEMLİ !!!!!
+                // BİR SONRAKİ ADIMDA BURAYA TOKEN'I KAYDETME KODUNU EKLEYECEĞİZ
+                Console.WriteLine("TOKEN ALINDI: " + token);
+
+                // Ana sayfaya yönlendir (ve menünün güncellenmesi için tam yenileme yap)
+                NavigationManager.NavigateTo("/", forceLoad: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Sunucuya bağlanırken bir hata oluştu: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,178 @@
+﻿@page "/moderation"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject Remoview.Web.Services.ApiClient ApiClient
+@using Remoview.Web.Services
+@using System.Text.Json
+
+<h2>SuperAdmin Moderation</h2>
+
+@if (!isChecked)
+{
+    <p>Yükleniyor...</p>
+}
+else if (!isSuperAdmin)
+{
+    <p>Bu sayfaya erişim yetkin yok.</p>
+
+    <details style="margin-top:12px;">
+        <summary>Debug (göster)</summary>
+        <pre style="white-space:pre-wrap; background:rgba(255,255,255,0.06); padding:10px; border-radius:12px; margin-top:10px;">
+            @debugText
+                </pre>
+    </details>
+}
+else
+{
+    <details style="margin-bottom:12px;">
+        <summary>Debug (gizle/göster)</summary>
+        <pre style="white-space:pre-wrap; background:rgba(255,255,255,0.06); padding:10px; border-radius:12px; margin-top:10px;">
+            @debugText
+                </pre>
+    </details>
+
+    @if (loading)
+    {
+        <p>Yükleniyor...</p>
+    }
+    else
+    {
+        <h4>Pending Films (@pendingFilms.Count)</h4>
+
+        @if (!pendingFilms.Any())
+        {
+            <p>Bekleyen film yok.</p>
+        }
+        else
+        {
+            <div class="d-flex flex-wrap gap-3">
+                @foreach (var f in pendingFilms)
+                {
+                    <div class="card" style="width:260px;">
+                        <img src="@(string.IsNullOrWhiteSpace(f.PosterUrl) ? "https://via.placeholder.com/260x360?text=No+Poster" : f.PosterUrl)"
+                             style="height:360px; object-fit:cover;" />
+                        <div class="card-body">
+                            <b>@f.Title</b>
+                            <div class="small opacity-75">CreatedAt: @f.CreatedAtUtc</div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-success btn-sm" @onclick="() => ApproveFilm(f.Id)">Onayla</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectFilm(f.Id)">Reddet</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <hr />
+
+        <h4>Pending Reviews (@pendingReviews.Count)</h4>
+
+        @if (!pendingReviews.Any())
+        {
+            <p>Bekleyen yorum yok.</p>
+        }
+        else
+        {
+            <div class="d-flex flex-column gap-2">
+                @foreach (var r in pendingReviews)
+                {
+                    <div class="card">
+                        <div class="card-body">
+                            <b>Film:</b> @r.FilmTitle (@r.FilmId) <br />
+                            <b>UserId:</b> @r.UserId <br />
+                            <b>Yorum:</b> @r.Comment
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-success btn-sm" @onclick="() => ApproveReview(r.Id)">Onayla</button>
+                                <button class="btn btn-danger btn-sm" @onclick="() => RejectReview(r.Id)">Reddet</button>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    bool loading = true;
+    bool isChecked = false;
+    bool isSuperAdmin = false;
+
+    string debugText = "";
+
+    List<ApiClient.PendingFilmDto> pendingFilms = new();
+    List<ApiClient.PendingReviewDto> pendingReviews = new();
+
+    private class DebugDto
+    {
+        public string? Email { get; set; }
+        public string? NameId { get; set; }
+        public bool IsSuperAdmin { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // ✅ Her durumda debug çek (token gerçekten kim?)
+        debugText = await ApiClient.GetModerationDebugAsync();
+
+        try
+        {
+            var dto = JsonSerializer.Deserialize<DebugDto>(
+                debugText,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
+
+            isSuperAdmin = dto?.IsSuperAdmin ?? false;
+        }
+        catch
+        {
+            isSuperAdmin = false;
+        }
+
+        isChecked = true;
+
+        if (isSuperAdmin)
+        {
+            await ReloadLists();
+        }
+
+        loading = false;
+        StateHasChanged();
+    }
+
+    private async Task ReloadLists()
+    {
+        pendingFilms = await ApiClient.GetPendingFilmsAsync();
+        pendingReviews = await ApiClient.GetPendingReviewsAsync();
+    }
+
+    private async Task ApproveFilm(int id)
+    {
+        await ApiClient.ApproveFilmAsync(id);
+        await ReloadLists();
+        StateHasChanged();
+    }
+
+    private async Task RejectFilm(int id)
+    {
+        await ApiClient.RejectFilmAsync(id, "Reddedildi");
+        await ReloadLists();
+        StateHasChanged();
+    }
+
+    private async Task ApproveReview(int id)
+    {
+        await ApiClient.ApproveReviewAsync(id);
+        await ReloadLists();
+        StateHasChanged();
+    }
+
+    private async Task RejectReview(int id)
+    {
+        await ApiClient.RejectReviewAsync(id, "Reddedildi");
+        await ReloadLists();
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,567 @@
+﻿@page "/profile"
+@rendermode InteractiveServer
+
+@using Remoview.Web.Services
+@using remoview.Dtos
+@using System.Text
+@using System.Text.Json
+
+@inject ApiClient ApiClient
+@inject LocalStorageService LocalStorage
+@inject NavigationManager Nav
+
+<PageTitle>Profil - Remoview</PageTitle>
+
+@if (loading)
+{
+    <div class="rm-profile-skel">
+        <div class="rm-skel-avatar"></div>
+        <div class="rm-skel-lines">
+            <div class="rm-skel-line w1"></div>
+            <div class="rm-skel-line w2"></div>
+        </div>
+    </div>
+
+    <div class="rm-skel-grid">
+        @for (int i = 0; i < 6; i++)
+        {
+            <div class="rm-skel-card"></div>
+        }
+    </div>
+}
+else
+{
+    <div class="rm-profile">
+        <!-- HEADER -->
+        <div class="rm-profile-head">
+            <div class="rm-avatar">@avatarLetter</div>
+
+            <div class="rm-head-meta">
+                <div class="rm-kicker">Hesap</div>
+                <div class="rm-email">@email</div>
+                <div class="rm-subtext">
+                    Favorilerini buradan yönetebilirsin. Film kartındaki kalbe basarak favoriden çıkarabilirsin.
+                </div>
+            </div>
+
+            <div class="rm-head-actions">
+                <button class="btn btn-outline-light btn-sm" @onclick="RefreshFavorites" disabled="@isBusy">
+                    <span class="bi bi-arrow-clockwise"></span>
+                    Yenile
+                </button>
+
+                <button class="btn btn-outline-danger btn-sm" @onclick="Logout" disabled="@isBusy">
+                    <span class="bi bi-box-arrow-right"></span>
+                    Çıkış
+                </button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger mt-3">@errorMessage</div>
+        }
+
+        <!-- FAVORITES -->
+        <div class="rm-section mt-4">
+            <div class="rm-section-head">
+                <h3 class="rm-section-title">Favoriler</h3>
+                <span class="rm-count">@favorites.Count</span>
+            </div>
+
+            @if (favorites.Count == 0)
+            {
+                <div class="rm-empty">
+                    <div class="rm-empty-icon">
+                        <span class="bi bi-heart"></span>
+                    </div>
+                    <div class="rm-empty-title">Henüz favorin yok</div>
+                    <div class="rm-empty-sub">
+                        Ana sayfadan kalbe basarak favori ekleyebilirsin.
+                    </div>
+                    <a class="btn btn-primary btn-sm mt-2" href="/">
+                        Ana sayfaya git
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="rm-fav-grid">
+                    @foreach (var film in favorites)
+                    {
+                        <div class="rm-fav-card">
+                            <div class="rm-fav-poster">
+                                <img src="@(string.IsNullOrEmpty(film.PosterUrl) ? "https://via.placeholder.com/300x450?text=Film+Afisi" : film.PosterUrl)"
+                                     alt="@film.Title" />
+
+                                <button type="button"
+                                        class="rm-fav-heart"
+                                        title="Favoriden çıkar"
+                                        disabled="@isBusy"
+                                        @onclick="() => RemoveFromFavorites(film.Id)">
+                                    <span class="bi bi-heart-fill"></span>
+                                </button>
+                            </div>
+
+                            <div class="rm-fav-body">
+                                <div class="rm-fav-title" title="@film.Title">@film.Title</div>
+
+                                <div class="rm-fav-bottom">
+                                    <div class="rm-fav-rating">
+                                        <span class="bi bi-star-fill"></span>
+                                        <span>@film.AverageRating.ToString("0.0")</span>
+                                    </div>
+
+                                    <a class="btn btn-outline-light btn-sm" href="/film/@film.Id">
+                                        Detay
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool loading = true;
+    private bool isBusy = false;
+
+    private string email = "-";
+    private string avatarLetter = "?";
+    private string? errorMessage;
+
+    private List<FilmSummaryDto> favorites = new();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        loading = true;
+        errorMessage = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // ✅ Email'i artık authToken’dan okuyacağız (authEmail'e güvenmiyoruz)
+            var token = await LocalStorage.GetItemAsync("authToken");
+            email = GetEmailFromJwt(token) ?? "-";
+            avatarLetter = !string.IsNullOrWhiteSpace(email) ? email.Trim()[0].ToString().ToUpper() : "?";
+
+            favorites = await ApiClient.GetFavoritesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Profil yüklenirken hata: " + ex.Message;
+        }
+        finally
+        {
+            loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RefreshFavorites()
+    {
+        if (isBusy) return;
+        isBusy = true;
+        errorMessage = null;
+
+        try
+        {
+            favorites = await ApiClient.GetFavoritesAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Favoriler yenilenirken hata: " + ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RemoveFromFavorites(int filmId)
+    {
+        if (isBusy) return;
+
+        errorMessage = null;
+        isBusy = true;
+
+        try
+        {
+            var ok = await ApiClient.RemoveFavoriteAsync(filmId);
+            if (ok)
+            {
+                favorites = favorites.Where(f => f.Id != filmId).ToList();
+            }
+            else
+            {
+                errorMessage = "Favoriden çıkarılamadı (token / yetki / API).";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Favoriden çıkarırken hata: " + ex.Message;
+        }
+        finally
+        {
+            isBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task Logout()
+    {
+        if (isBusy) return;
+        isBusy = true;
+
+        try
+        {
+            await ApiClient.LogoutAsync();
+        }
+        catch { }
+        finally
+        {
+            isBusy = false;
+            Nav.NavigateTo("/login", forceLoad: true);
+        }
+    }
+
+    // =========================
+    // JWT helpers (decode payload, extract email)
+    // =========================
+    private string? GetEmailFromJwt(string? token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        var parts = token.Split('.');
+        if (parts.Length < 2) return null;
+
+        try
+        {
+            var payloadBytes = Base64UrlDecode(parts[1]);
+            var payloadJson = Encoding.UTF8.GetString(payloadBytes);
+
+            using var doc = JsonDocument.Parse(payloadJson);
+            var root = doc.RootElement;
+
+            // senin token’da email claim key’i genelde bu schema url:
+            // "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+            string[] keys =
+            {
+                "email",
+                "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+        };
+
+            foreach (var k in keys)
+            {
+                if (root.TryGetProperty(k, out var v))
+                {
+                    var s = v.GetString();
+                    if (!string.IsNullOrWhiteSpace(s)) return s.Trim();
+                }
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
+    private static byte[] Base64UrlDecode(string input)
+    {
+        input = input.Replace('-', '+').Replace('_', '/');
+        switch (input.Length % 4)
+        {
+            case 2: input += "=="; break;
+            case 3: input += "="; break;
+        }
+        return Convert.FromBase64String(input);
+    }
+}
+
+<style>
+    /* ===== Profile Page ===== */
+    .rm-profile {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px 6px 30px;
+    }
+
+    .rm-profile-head {
+        display: grid;
+        grid-template-columns: 72px 1fr auto;
+        gap: 16px;
+        align-items: center;
+        padding: 16px 16px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .rm-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        font-size: 30px;
+        font-weight: 900;
+        background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+        border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .rm-kicker {
+        font-size: 12px;
+        opacity: .75;
+        font-weight: 800;
+        letter-spacing: .4px;
+        text-transform: uppercase;
+    }
+
+    .rm-email {
+        font-size: 18px;
+        font-weight: 900;
+        line-height: 1.1;
+    }
+
+    .rm-subtext {
+        margin-top: 6px;
+        opacity: .75;
+        font-weight: 600;
+        max-width: 720px;
+    }
+
+    .rm-head-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+
+    /* Section */
+    .rm-section-head {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        margin-bottom: 12px;
+    }
+
+    .rm-section-title {
+        margin: 0;
+        font-weight: 900;
+    }
+
+    .rm-count {
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-weight: 900;
+        font-size: 12px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        opacity: .85;
+    }
+
+    /* Grid */
+    .rm-fav-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+    }
+
+    .rm-fav-card {
+        border-radius: 18px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        transition: transform .18s ease, box-shadow .18s ease;
+    }
+
+        .rm-fav-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+        }
+
+    .rm-fav-poster {
+        position: relative;
+        aspect-ratio: 2 / 3;
+        background: rgba(255,255,255,0.04);
+    }
+
+        .rm-fav-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+    .rm-fav-heart {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        width: 40px;
+        height: 40px;
+        border-radius: 999px;
+        border: 1px solid rgba(255,255,255,0.12);
+        background: rgba(0,0,0,0.45);
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        color: #ff4d6d;
+    }
+
+        .rm-fav-heart:hover {
+            background: rgba(0,0,0,0.65);
+        }
+
+        .rm-fav-heart:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+    .rm-fav-body {
+        padding: 12px 12px 14px;
+    }
+
+    .rm-fav-title {
+        font-weight: 900;
+        line-height: 1.15;
+        min-height: 36px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    .rm-fav-bottom {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+    }
+
+    .rm-fav-rating {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+        font-weight: 900;
+        font-size: 12px;
+    }
+
+        .rm-fav-rating .bi {
+            opacity: .9;
+        }
+
+    /* Empty */
+    .rm-empty {
+        padding: 24px 16px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+        text-align: center;
+    }
+
+    .rm-empty-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 999px;
+        margin: 0 auto 10px;
+        display: grid;
+        place-items: center;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.10);
+    }
+
+    .rm-empty-title {
+        font-weight: 900;
+        font-size: 16px;
+    }
+
+    .rm-empty-sub {
+        margin-top: 6px;
+        opacity: .75;
+        font-weight: 600;
+    }
+
+    /* Skeleton */
+    .rm-profile-skel {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        padding: 16px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .rm-skel-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+    }
+
+    .rm-skel-lines {
+        flex: 1;
+    }
+
+    .rm-skel-line {
+        height: 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        margin-bottom: 10px;
+    }
+
+        .rm-skel-line.w1 {
+            width: 220px;
+        }
+
+        .rm-skel-line.w2 {
+            width: 340px;
+            opacity: .75;
+        }
+
+    .rm-skel-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+    }
+
+    .rm-skel-card {
+        aspect-ratio: 2 / 3;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* Responsive */
+    @@media (max-width: 720px) {
+        .rm-profile-head {
+            grid-template-columns: 64px 1fr;
+            grid-template-rows: auto auto;
+        }
+
+        .rm-head-actions {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
+        }
+
+        .rm-avatar {
+            width: 64px;
+            height: 64px;
+        }
+    }
+</style>
