@@ -1,6 +1,6 @@
-# Remoview 🎬 (BLM4531 Project)
+# Remoview 🎬 (BLM4531 Dersi)
 Video Linki:
-PDF Linki:
+PDF Linki: https://drive.google.com/file/d/1cjB0r-DNp78bkjJcYNJqwYUaNlEvchcR/view?usp=sharing
 
 Remoview; film listeleme, film detay görüntüleme, puan verme, yorum yapma ve favorilere ekleme özellikleri sunan bir web uygulamasıdır.  
 Proje; **ASP.NET Core Web API (Backend)** + **Blazor (Frontend)** + **PostgreSQL (Database)** mimarisiyle geliştirilmiştir.
