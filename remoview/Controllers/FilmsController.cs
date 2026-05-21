@@ -52,6 +52,7 @@ namespace remoview.Controllers
                     Title = f.Title,
                     PosterUrl = f.PosterUrl,
                     AverageRating = f.Ratings.Any() ? f.Ratings.Average(r => r.Value) : 0,
+                    ReviewCount = f.Reviews.Count(r => r.Status == ModerationStatus.Approved),
                     Genres = f.Genres.Select(g => g.Name).ToList()
                 })
                 .ToListAsync();

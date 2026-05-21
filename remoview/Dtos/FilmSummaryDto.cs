@@ -8,6 +8,7 @@ namespace remoview.Dtos
         public string Title { get; set; }
         public string? PosterUrl { get; set; }
         public double AverageRating { get; set; }
+        public int ReviewCount { get; set; }
 
         // ESKİSİ: public string? Genre { get; set; }
         // YENİSİ: Tür isimlerinin listesi (örn: ["Action", "Sci-Fi"])
