@@ -29,11 +29,24 @@ namespace remoview.Controllers
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto registerDto)
         {
+            var username = NormalizeUsername(registerDto.Username);
+
+            if (string.IsNullOrWhiteSpace(username))
+            {
+                return BadRequest("Kullanıcı adı zorunludur.");
+            }
+
             // 1. Bu email adresi zaten var mı?
             var userExists = await _context.Users.AnyAsync(u => u.Email == registerDto.Email);
             if (userExists)
             {
                 return BadRequest("Bu email adresi zaten kullanılıyor.");
+            }
+
+            var usernameExists = await _context.Users.AnyAsync(u => u.Username.ToLower() == username.ToLower());
+            if (usernameExists)
+            {
+                return BadRequest("Bu kullanıcı adı zaten kullanılıyor.");
             }
 
             // 2. Şifreyi "Hash"le (güvenli hale getir)
@@ -45,6 +58,7 @@ namespace remoview.Controllers
             var user = new User
             {
                 Email = registerDto.Email,
+                Username = username,
                 PasswordHash = passwordHash
             };
 
@@ -76,6 +90,11 @@ namespace remoview.Controllers
         }
 
         // --- Yardımcı Metot ---
+        private static string NormalizeUsername(string? username)
+        {
+            return username?.Trim().ToLowerInvariant() ?? string.Empty;
+        }
+
         private string CreateJwtToken(User user)
         {
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("BizimCokGizliAnahtarimiz12345!*-"));

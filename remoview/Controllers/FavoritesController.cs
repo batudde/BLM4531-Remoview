@@ -60,7 +60,9 @@ public class FavoritesController : ControllerBase
 
                 AverageRating = film.Ratings.Any()
                     ? film.Ratings.Average(r => r.Value)
-                    : 0.0
+                    : 0.0,
+
+                ReviewCount = film.Reviews.Count(r => r.Status == ModerationStatus.Approved)
             })
             .ToListAsync();
 

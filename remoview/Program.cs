@@ -97,6 +97,12 @@ app.MapControllers();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"ProfileDescription\" text;");
+    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Users\" ADD COLUMN IF NOT EXISTS \"Username\" text;");
+    await db.Database.ExecuteSqlRawAsync("UPDATE \"Users\" SET \"Username\" = lower(split_part(\"Email\", '@', 1)) WHERE \"Username\" IS NULL OR trim(\"Username\") = '';");
+    await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Users\" ALTER COLUMN \"Username\" SET NOT NULL;");
+    await db.Database.ExecuteSqlRawAsync("CREATE UNIQUE INDEX IF NOT EXISTS \"IX_Users_Username\" ON \"Users\" (\"Username\");");
     await DbSeeder.SeedGenresAsync(db);
 }
 
