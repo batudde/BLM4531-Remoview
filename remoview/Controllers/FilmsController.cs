@@ -82,7 +82,8 @@ namespace remoview.Controllers
                             Id = r.Id,
                             Comment = r.Comment,
                             CreatedAt = r.CreatedAt,
-                            UserId = r.UserId
+                            UserId = r.UserId,
+                            Username = r.User.Username
                         })
                         .ToList(),
 

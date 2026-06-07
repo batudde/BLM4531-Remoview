@@ -6,6 +6,6 @@
         public string Comment { get; set; }
         public DateTime CreatedAt { get; set; }
         public int UserId { get; set; }
-        // public string UserName { get; set; } // İleride kullanıcının adını göstermek için
+        public string Username { get; set; } = string.Empty;
     }
 }

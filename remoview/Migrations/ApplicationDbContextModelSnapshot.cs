@@ -101,6 +101,39 @@ namespace remoview.Migrations
                     b.ToTable("Films");
                 });
 
+            modelBuilder.Entity("remoview.Models.Friendship", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AddresseeId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RespondedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("RequesterId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AddresseeId");
+
+                    b.HasIndex("RequesterId", "AddresseeId")
+                        .IsUnique();
+
+                    b.ToTable("Friendships");
+                });
+
             modelBuilder.Entity("remoview.Models.Genre", b =>
                 {
                     b.Property<int>("Id")
@@ -254,6 +287,25 @@ namespace remoview.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("remoview.Models.Friendship", b =>
+                {
+                    b.HasOne("remoview.Models.User", "Addressee")
+                        .WithMany("ReceivedFriendRequests")
+                        .HasForeignKey("AddresseeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("remoview.Models.User", "Requester")
+                        .WithMany("SentFriendRequests")
+                        .HasForeignKey("RequesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Addressee");
+
+                    b.Navigation("Requester");
+                });
+
             modelBuilder.Entity("remoview.Models.Rating", b =>
                 {
                     b.HasOne("remoview.Models.Film", "Film")
@@ -301,9 +353,13 @@ namespace remoview.Migrations
 
             modelBuilder.Entity("remoview.Models.User", b =>
                 {
+                    b.Navigation("ReceivedFriendRequests");
+
                     b.Navigation("Ratings");
 
                     b.Navigation("Reviews");
+
+                    b.Navigation("SentFriendRequests");
                 });
 #pragma warning restore 612, 618
         }
